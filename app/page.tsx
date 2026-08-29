@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Flag,
   LogOut,
+  Pencil,
   Search,
   Send,
   Shuffle,
@@ -846,18 +847,60 @@ function ProfileScreen({
   me,
   onBack,
   onLogout,
+  onUpdate,
 }: {
   lang: Lang;
   token: string;
   me: Profile;
   onBack: () => void;
   onLogout: () => void;
+  onUpdate: (p: Profile) => void;
 }) {
   const [complaining, setComplaining] = useState(false);
   const [text, setText] = useState("");
   const [target, setTarget] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(me.name || "");
+  const [bio, setBio] = useState(me.bio || "");
+  const [photo, setPhoto] = useState(me.photo || "");
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = () => {
+    setName(me.name || "");
+    setBio(me.bio || "");
+    setPhoto(me.photo || "");
+    setSaveErr("");
+    setEditing(true);
+  };
+
+  const pickPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      setPhoto(await fileToThumb(f));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const saveProfile = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveErr("");
+    const r = await api("update_profile", { token, name, bio, photo });
+    setSaving(false);
+    if (r.ok) {
+      onUpdate(r.profile);
+      setEditing(false);
+    } else {
+      setSaveErr(errMessage(lang, r.error, t));
+    }
+  };
 
   const submit = async () => {
     if (!text.trim() || busy) return;
@@ -886,19 +929,86 @@ function ProfileScreen({
           <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>{t(lang, "profile")}</h2>
         </header>
 
-        <div className="flex flex-col items-center gap-3 py-8">
-          <Avatar photo={me.photo} name={me.name || me.username} size={104} />
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1.5">
-              <p className="text-xl font-bold">{me.name || me.username}</p>
-              {me.is_admin && <AdminBadge />}
+        {!editing ? (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <Avatar photo={me.photo} name={me.name || me.username} size={104} />
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1.5">
+                <p className="text-xl font-bold">{me.name || me.username}</p>
+                {me.is_admin && <AdminBadge />}
+              </div>
+              <p className="text-sm" style={{ color: C.muted }}>@{me.username}</p>
             </div>
-            <p className="text-sm" style={{ color: C.muted }}>@{me.username}</p>
+            {me.bio && (
+              <p className="max-w-xs text-center text-sm" style={{ color: C.muted }}>{me.bio}</p>
+            )}
+            <button
+              onClick={startEdit}
+              className="mt-1 flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold transition"
+              style={{ borderColor: C.border, color: C.cyan }}
+            >
+              <Pencil className="h-3.5 w-3.5" /> {t(lang, "editProfile")}
+            </button>
           </div>
-          {me.bio && (
-            <p className="max-w-xs text-center text-sm" style={{ color: C.muted }}>{me.bio}</p>
-          )}
-        </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <div className="relative">
+              <Avatar photo={photo} name={name || me.username} size={104} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border text-white transition"
+                style={{ background: C.blue, borderColor: C.bg }}
+              >
+                <Camera className="h-4 w-4" />
+              </button>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickPhoto} />
+            {photo ? (
+              <button onClick={() => setPhoto("")} className="text-xs" style={{ color: C.muted }}>
+                {t(lang, "removePhoto")}
+              </button>
+            ) : (
+              <button onClick={() => fileRef.current?.click()} className="text-xs font-semibold" style={{ color: C.cyan }}>
+                {t(lang, "uploadPhoto")}
+              </button>
+            )}
+
+            <div className="mt-2 w-full max-w-xs">
+              <input
+                className={inputCls}
+                style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.text, marginBottom: 8 }}
+                placeholder={t(lang, "namePlaceholder")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <textarea
+                className="w-full rounded-xl border px-4 py-3 text-[15px] outline-none"
+                style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.text, minHeight: 80, resize: "vertical" }}
+                placeholder={t(lang, "bioPlaceholder")}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
+              {saveErr && <p className="mt-2 text-sm" style={{ color: C.danger }}>{saveErr}</p>}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setEditing(false)}
+                  className="flex-1 rounded-xl border px-4 py-3 text-[15px] font-semibold transition"
+                  style={{ borderColor: C.border, color: C.muted }}
+                >
+                  {t(lang, "cancel")}
+                </button>
+                <button
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className="flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)" }}
+                >
+                  {saving ? t(lang, "loading") : t(lang, "save")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 pb-8">
           {!complaining ? (
@@ -1038,7 +1148,16 @@ export default function Page() {
   }
 
   if (screen === "profile") {
-    return <ProfileScreen lang={lang} token={token} me={me} onBack={() => setScreen("home")} onLogout={logout} />;
+    return (
+      <ProfileScreen
+        lang={lang}
+        token={token}
+        me={me}
+        onBack={() => setScreen("home")}
+        onLogout={logout}
+        onUpdate={(p) => setMe(p)}
+      />
+    );
   }
 
   return (

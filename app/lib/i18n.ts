@@ -32,6 +32,8 @@ const dict: Record<Lang, Record<string, string>> = {
     removePhoto: "Remove photo",
     skip: "Skip",
     save: "Save",
+    editProfile: "Edit profile",
+    cancel: "Cancel",
 
     home: "Home",
     searchPlaceholder: "Search people...",
@@ -120,6 +122,8 @@ const dict: Record<Lang, Record<string, string>> = {
     removePhoto: "Rasmni o'chirish",
     skip: "O'tkazib yuborish",
     save: "Saqlash",
+    editProfile: "Profilni tahrirlash",
+    cancel: "Bekor qilish",
 
     home: "Bosh sahifa",
     searchPlaceholder: "Odamlarni qidirish...",
