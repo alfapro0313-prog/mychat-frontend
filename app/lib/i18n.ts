@@ -2,7 +2,7 @@ export type Lang = "en" | "uz";
 
 const dict: Record<Lang, Record<string, string>> = {
   en: {
-    appName: "MYCHAT",
+    appName: "Randep",
     tagline: "Meet someone new.",
     chooseLanguage: "Choose your language",
     english: "English",
@@ -79,6 +79,16 @@ const dict: Record<Lang, Record<string, string>> = {
     logoutAdmin: "Log out",
     refresh: "Refresh",
 
+    deleteChat: "Delete",
+    deleteChatConfirm: "Remove this conversation from your list?",
+    siteUsers: "Site visitors",
+    noSiteUsers: "No visitors yet",
+    lastSeen: "Last seen",
+    bannedUntil: "Banned for",
+    hours: "h",
+    banUser: "Ban for 3 hours",
+    userBanned: "Banned",
+
     loading: "Loading...",
     err_username_taken: "This username is already taken",
     err_username_too_short: "Username must be at least 3 characters",
@@ -89,10 +99,11 @@ const dict: Record<Lang, Record<string, string>> = {
     err_not_matched: "You are not connected to anyone",
     err_photo_too_large: "Photo is too large",
     err_network: "Network error, please try again",
+    err_banned: "Your account is temporarily suspended. Please try again later.",
     err_unknown: "Something went wrong",
   },
   uz: {
-    appName: "MYCHAT",
+    appName: "Randep",
     tagline: "Yangi odam bilan tanishing.",
     chooseLanguage: "Tilingizni tanlang",
     english: "English",
@@ -169,6 +180,16 @@ const dict: Record<Lang, Record<string, string>> = {
     logoutAdmin: "Chiqish",
     refresh: "Yangilash",
 
+    deleteChat: "O'chirish",
+    deleteChatConfirm: "Bu suhbat ro'yxatdan olib tashlansinmi?",
+    siteUsers: "Saytga kirgan foydalanuvchilar",
+    noSiteUsers: "Hozircha hech kim kirmagan",
+    lastSeen: "Oxirgi faollik",
+    bannedUntil: "Bloklangan, qoldi:",
+    hours: "soat",
+    banUser: "3 soatga bloklash",
+    userBanned: "Bloklandi",
+
     loading: "Yuklanmoqda...",
     err_username_taken: "Bu foydalanuvchi nomi band",
     err_username_too_short: "Foydalanuvchi nomi kamida 3 ta belgi bo'lishi kerak",
@@ -179,6 +200,7 @@ const dict: Record<Lang, Record<string, string>> = {
     err_not_matched: "Siz hozir hech kim bilan bog'lanmagansiz",
     err_photo_too_large: "Rasm juda katta",
     err_network: "Tarmoq xatosi, qayta urinib ko'ring",
+    err_banned: "Hisobingiz vaqtincha bloklangan. Keyinroq urinib ko'ring.",
     err_unknown: "Nimadir xato ketdi",
   },
 };

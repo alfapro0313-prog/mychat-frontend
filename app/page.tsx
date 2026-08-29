@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   ArrowRight,
+  Ban,
   Camera,
   ChevronLeft,
   Flag,
@@ -11,12 +12,14 @@ import {
   Search,
   Send,
   Shuffle,
+  Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { t, type Lang } from "@/app/lib/i18n";
 import { api, errMessage, type Conversation, type Message, type Profile } from "@/app/lib/api";
 
-type Screen = "auth" | "setup" | "home" | "chat" | "random" | "profile";
+type Screen = "auth" | "setup" | "home" | "chat" | "random" | "profile" | "viewProfile";
 
 const C = {
   bg: "#060a13",
@@ -130,16 +133,16 @@ function LangSelect({ onPick }: { onPick: (l: Lang) => void }) {
         style={{ background: `linear-gradient(180deg,${C.panel},${C.bg})`, border: `1px solid ${C.border}` }}
       >
         <div
-          className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl"
-          style={{ background: "linear-gradient(135deg,#3b82f6,#22d3ee)" }}
+          className="mx-auto mb-6 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl"
         >
-          <Shuffle className="h-7 w-7 text-white" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Randep" className="h-full w-full object-cover" />
         </div>
         <h1
           className="text-center text-3xl font-bold tracking-tight"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          MYCHAT
+          Randep
         </h1>
         <p className="mt-2 text-center text-sm" style={{ color: C.muted }}>
           Choose your language
@@ -376,6 +379,7 @@ function HomeScreen({
   onOpenChat,
   onRandom,
   onProfile,
+  onViewProfile,
 }: {
   lang: Lang;
   token: string;
@@ -383,11 +387,14 @@ function HomeScreen({
   onOpenChat: (u: Profile) => void;
   onRandom: () => void;
   onProfile: () => void;
+  onViewProfile: (u: Profile) => void;
 }) {
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -426,17 +433,26 @@ function HomeScreen({
     return () => clearTimeout(id);
   }, [query, token]);
 
+  const deleteConversation = async (username: string) => {
+    if (deleting) return;
+    setDeleting(true);
+    const r = await api("delete_chat", { token, target: username });
+    setDeleting(false);
+    if (r.ok) {
+      setConvs((prev) => prev.filter((c) => c.username !== username));
+      setConfirmDelete(null);
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen flex-col">
       <Glow />
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-4">
         <header className="flex items-center justify-between py-5">
           <div className="flex items-center gap-2">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#22d3ee)" }}
-            >
-              <Shuffle className="h-5 w-5 text-white" />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Randep" className="h-full w-full object-cover" />
             </div>
             <span className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
               {t(lang, "appName")}
@@ -465,21 +481,22 @@ function HomeScreen({
               <p className="px-1 text-sm" style={{ color: C.muted }}>{t(lang, "noResults")}</p>
             )}
             {results.map((u) => (
-              <button
+              <div
                 key={u.username}
-                onClick={() => onOpenChat(u)}
-                className="flex items-center gap-3 rounded-xl border p-3 text-left transition hover:brightness-125"
+                className="flex items-center gap-3 rounded-xl border p-3 transition hover:brightness-125"
                 style={{ background: C.panel, borderColor: C.border }}
               >
-                <Avatar photo={u.photo} name={u.name || u.username} size={42} />
-                <div className="min-w-0">
+                <button onClick={() => onViewProfile(u)} className="shrink-0">
+                  <Avatar photo={u.photo} name={u.name || u.username} size={42} />
+                </button>
+                <button onClick={() => onOpenChat(u)} className="min-w-0 flex-1 text-left">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate font-semibold">{u.name || u.username}</p>
                     {u.is_admin && <AdminBadge />}
                   </div>
                   <p className="truncate text-sm" style={{ color: C.muted }}>@{u.username}</p>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         ) : (
@@ -492,21 +509,53 @@ function HomeScreen({
             ) : (
               <div className="flex flex-col gap-2 pb-6">
                 {convs.map((c) => (
-                  <button
+                  <div
                     key={c.username}
-                    onClick={() => onOpenChat(c)}
-                    className="flex items-center gap-3 rounded-xl border p-3 text-left transition hover:brightness-125"
+                    className="rounded-xl border p-3 transition hover:brightness-125"
                     style={{ background: C.panel, borderColor: C.border }}
                   >
-                    <Avatar photo={c.photo} name={c.name || c.username} size={46} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="truncate font-semibold">{c.name || c.username}</p>
-                        {c.is_admin && <AdminBadge />}
-                      </div>
-                      <p className="truncate text-sm" style={{ color: C.muted }}>{c.last_text}</p>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => onViewProfile(c)} className="shrink-0">
+                        <Avatar photo={c.photo} name={c.name || c.username} size={46} />
+                      </button>
+                      <button onClick={() => onOpenChat(c)} className="min-w-0 flex-1 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate font-semibold">{c.name || c.username}</p>
+                          {c.is_admin && <AdminBadge />}
+                        </div>
+                        <p className="truncate text-sm" style={{ color: C.muted }}>{c.last_text}</p>
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(confirmDelete === c.username ? null : c.username)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition"
+                        style={{ color: C.muted }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  </button>
+                    {confirmDelete === c.username && (
+                      <div className="mt-2 flex items-center justify-between gap-2 rounded-lg p-2" style={{ background: C.panel2 }}>
+                        <p className="text-xs" style={{ color: C.muted }}>{t(lang, "deleteChatConfirm")}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                            style={{ color: C.muted }}
+                          >
+                            {t(lang, "cancel")}
+                          </button>
+                          <button
+                            onClick={() => deleteConversation(c.username)}
+                            disabled={deleting}
+                            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                            style={{ background: C.danger }}
+                          >
+                            {t(lang, "deleteChat")}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -529,18 +578,93 @@ function HomeScreen({
   );
 }
 
+function ViewProfileScreen({
+  lang,
+  token,
+  me,
+  user,
+  onBack,
+  onBanned,
+}: {
+  lang: Lang;
+  token: string;
+  me: Profile;
+  user: Profile;
+  onBack: () => void;
+  onBanned: (username: string) => void;
+}) {
+  const [banning, setBanning] = useState(false);
+  const [banned, setBanned] = useState(false);
+  const canBan = me.is_admin && !user.is_admin && user.username !== me.username;
+
+  const doBan = async () => {
+    if (banning || banned) return;
+    setBanning(true);
+    const r = await api("ban_user", { token, target: user.username });
+    setBanning(false);
+    if (r.ok) {
+      setBanned(true);
+      onBanned(user.username);
+    }
+  };
+
+  return (
+    <div className="relative flex min-h-screen flex-col">
+      <Glow />
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-4">
+        <header className="flex items-center gap-3 border-b py-3" style={{ borderColor: C.border }}>
+          <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-lg transition" style={{ background: C.panel }}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>{t(lang, "profile")}</h2>
+        </header>
+
+        <div className="flex flex-col items-center gap-3 py-8">
+          <Avatar photo={user.photo} name={user.name || user.username} size={104} />
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5">
+              <p className="text-xl font-bold">{user.name || user.username}</p>
+              {user.is_admin && <AdminBadge />}
+            </div>
+            <p className="text-sm" style={{ color: C.muted }}>@{user.username}</p>
+          </div>
+          {user.bio && (
+            <p className="max-w-xs text-center text-sm" style={{ color: C.muted }}>{user.bio}</p>
+          )}
+        </div>
+
+        {canBan && (
+          <div className="flex flex-col gap-3 pb-8">
+            <button
+              onClick={doBan}
+              disabled={banning || banned}
+              className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-[15px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+              style={{ borderColor: C.border, background: "linear-gradient(135deg,#f87171,#ef4444)" }}
+            >
+              <Ban className="h-4 w-4" />
+              {banned ? t(lang, "userBanned") : banning ? t(lang, "loading") : t(lang, "banUser")}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChatScreen({
   lang,
   token,
   me,
   other,
   onBack,
+  onViewProfile,
 }: {
   lang: Lang;
   token: string;
   me: Profile;
   other: Profile;
   onBack: () => void;
+  onViewProfile: (u: Profile) => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -593,14 +717,16 @@ function ChatScreen({
           <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-lg transition" style={{ background: C.panel }}>
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <Avatar photo={other.photo} name={other.name || other.username} size={38} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate font-semibold">{other.name || other.username}</p>
-              {other.is_admin && <AdminBadge />}
+          <button onClick={() => onViewProfile(other)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <Avatar photo={other.photo} name={other.name || other.username} size={38} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="truncate font-semibold">{other.name || other.username}</p>
+                {other.is_admin && <AdminBadge />}
+              </div>
+              <p className="truncate text-xs" style={{ color: C.muted }}>@{other.username}</p>
             </div>
-            <p className="truncate text-xs" style={{ color: C.muted }}>@{other.username}</p>
-          </div>
+          </button>
         </header>
 
         <div ref={boxRef} className="flex-1 space-y-2 overflow-y-auto py-4">
@@ -848,6 +974,7 @@ function ProfileScreen({
   onBack,
   onLogout,
   onUpdate,
+  onViewProfile,
 }: {
   lang: Lang;
   token: string;
@@ -855,6 +982,7 @@ function ProfileScreen({
   onBack: () => void;
   onLogout: () => void;
   onUpdate: (p: Profile) => void;
+  onViewProfile: (u: Profile) => void;
 }) {
   const [complaining, setComplaining] = useState(false);
   const [text, setText] = useState("");
@@ -869,6 +997,14 @@ function ProfileScreen({
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [showComplaints, setShowComplaints] = useState(false);
+  const [complaints, setComplaints] = useState<{ from: string; target: string; text: string; ts: number }[]>([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+
+  const [showSiteUsers, setShowSiteUsers] = useState(false);
+  const [siteUsers, setSiteUsers] = useState<{ username: string; name: string; photo: string; last_seen: number; banned_ms: number }[]>([]);
+  const [loadingSiteUsers, setLoadingSiteUsers] = useState(false);
 
   const startEdit = () => {
     setName(me.name || "");
@@ -915,6 +1051,28 @@ function ProfileScreen({
         setSent(false);
         setComplaining(false);
       }, 2000);
+    }
+  };
+
+  const loadComplaints = async () => {
+    if (loadingComplaints) return;
+    setLoadingComplaints(true);
+    const r = await api("my_complaints", { token });
+    setLoadingComplaints(false);
+    if (r.ok) {
+      setComplaints(r.complaints || []);
+      setShowComplaints(true);
+    }
+  };
+
+  const loadSiteUsers = async () => {
+    if (loadingSiteUsers) return;
+    setLoadingSiteUsers(true);
+    const r = await api("site_users", { token });
+    setLoadingSiteUsers(false);
+    if (r.ok) {
+      setSiteUsers(r.users || []);
+      setShowSiteUsers(true);
     }
   };
 
@@ -1053,6 +1211,98 @@ function ProfileScreen({
             </div>
           )}
 
+          {me.is_admin && (
+            <div className="rounded-xl border" style={{ borderColor: C.border, background: C.panel }}>
+              <button
+                onClick={() => (showComplaints ? setShowComplaints(false) : loadComplaints())}
+                className="flex w-full items-center justify-between rounded-xl px-4 py-3.5 text-[15px] font-semibold transition"
+                style={{ color: C.text }}
+              >
+                <span className="flex items-center gap-2">
+                  <Flag className="h-4 w-4" style={{ color: C.danger }} />
+                  {t(lang, "complaints")}
+                </span>
+                <span className="text-xs" style={{ color: C.muted }}>
+                  {loadingComplaints ? t(lang, "loading") : showComplaints ? "▲" : "▼"}
+                </span>
+              </button>
+              {showComplaints && (
+                <div className="flex flex-col gap-2 border-t px-4 py-3" style={{ borderColor: C.border }}>
+                  {complaints.length === 0 ? (
+                    <p className="py-2 text-center text-sm" style={{ color: C.muted }}>
+                      {t(lang, "noComplaints")}
+                    </p>
+                  ) : (
+                    complaints.map((c, i) => (
+                      <div key={i} className="rounded-lg p-3" style={{ background: C.panel2 }}>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: C.muted }}>
+                          <span>{t(lang, "from")}: <strong style={{ color: C.text }}>{c.from}</strong></span>
+                          {c.target && (
+                            <span>{t(lang, "aboutUser")}: <strong style={{ color: C.text }}>{c.target}</strong></span>
+                          )}
+                          <span>{new Date(c.ts).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-1.5 text-sm" style={{ color: C.text }}>{c.text}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {me.is_admin && (
+            <div className="rounded-xl border" style={{ borderColor: C.border, background: C.panel }}>
+              <button
+                onClick={() => (showSiteUsers ? setShowSiteUsers(false) : loadSiteUsers())}
+                className="flex w-full items-center justify-between rounded-xl px-4 py-3.5 text-[15px] font-semibold transition"
+                style={{ color: C.text }}
+              >
+                <span className="flex items-center gap-2">
+                  <Users className="h-4 w-4" style={{ color: C.cyan }} />
+                  {t(lang, "siteUsers")}
+                </span>
+                <span className="text-xs" style={{ color: C.muted }}>
+                  {loadingSiteUsers ? t(lang, "loading") : showSiteUsers ? "▲" : "▼"}
+                </span>
+              </button>
+              {showSiteUsers && (
+                <div className="flex flex-col gap-2 border-t px-4 py-3" style={{ borderColor: C.border }}>
+                  {siteUsers.length === 0 ? (
+                    <p className="py-2 text-center text-sm" style={{ color: C.muted }}>
+                      {t(lang, "noSiteUsers")}
+                    </p>
+                  ) : (
+                    siteUsers.map((u) => (
+                      <div
+                        key={u.username}
+                        className="flex items-center gap-3 rounded-lg p-2.5"
+                        style={{ background: C.panel2 }}
+                      >
+                        <button
+                          onClick={() => onViewProfile({ username: u.username, name: u.name, bio: "", photo: u.photo, is_admin: false })}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <Avatar photo={u.photo} name={u.name || u.username} size={38} />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{u.name || u.username}</p>
+                            <p className="truncate text-xs" style={{ color: C.muted }}>
+                              {u.banned_ms > 0
+                                ? `${t(lang, "bannedUntil")} ${Math.ceil(u.banned_ms / 3600000)} ${t(lang, "hours")}`
+                                : u.last_seen
+                                ? `${t(lang, "lastSeen")}: ${new Date(u.last_seen).toLocaleString()}`
+                                : ""}
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={onLogout}
             className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-[15px] font-semibold transition"
@@ -1073,6 +1323,8 @@ export default function Page() {
   const [me, setMe] = useState<Profile | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [activeChat, setActiveChat] = useState<Profile | null>(null);
+  const [viewingUser, setViewingUser] = useState<Profile | null>(null);
+  const [prevScreen, setPrevScreen] = useState<Screen>("home");
 
   useEffect(() => {
     const l = localStorage.getItem("rc_lang");
@@ -1139,6 +1391,30 @@ export default function Page() {
           setActiveChat(null);
           setScreen("home");
         }}
+        onViewProfile={(u) => {
+          setViewingUser(u);
+          setPrevScreen("chat");
+          setScreen("viewProfile");
+        }}
+      />
+    );
+  }
+
+  if (screen === "viewProfile" && viewingUser) {
+    return (
+      <ViewProfileScreen
+        lang={lang}
+        token={token}
+        me={me}
+        user={viewingUser}
+        onBack={() => {
+          setViewingUser(null);
+          setScreen(prevScreen);
+        }}
+        onBanned={() => {
+          setViewingUser(null);
+          setScreen(prevScreen);
+        }}
       />
     );
   }
@@ -1156,6 +1432,11 @@ export default function Page() {
         onBack={() => setScreen("home")}
         onLogout={logout}
         onUpdate={(p) => setMe(p)}
+        onViewProfile={(u) => {
+          setViewingUser(u);
+          setPrevScreen("profile");
+          setScreen("viewProfile");
+        }}
       />
     );
   }
@@ -1171,6 +1452,11 @@ export default function Page() {
       }}
       onRandom={() => setScreen("random")}
       onProfile={() => setScreen("profile")}
+      onViewProfile={(u) => {
+        setViewingUser(u);
+        setPrevScreen("home");
+        setScreen("viewProfile");
+      }}
     />
   );
 }

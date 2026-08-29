@@ -16,7 +16,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "MYCHAT",
+  title: "Randep",
   description: "Chat with people and meet someone new, randomly.",
 };
 
