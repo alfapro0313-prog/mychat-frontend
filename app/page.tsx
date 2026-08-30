@@ -197,6 +197,10 @@ function AuthScreen({
     setBusy(false);
     if (r.ok) {
       onAuthed(r.token, r.profile, mode === "register");
+    } else if (r.error === "banned") {
+      const hrs = Math.max(1, Math.ceil((r.banned_ms || 0) / 3600000));
+      const reasonPart = r.reason ? ` ${t(lang, "banReasonLabel")}: ${r.reason}` : "";
+      setError(`${t(lang, "bannedByAdmin")} (${hrs} ${t(lang, "hours")}).${reasonPart}`);
     } else {
       setError(errMessage(lang, r.error || "unknown", t));
     }
@@ -595,12 +599,14 @@ function ViewProfileScreen({
 }) {
   const [banning, setBanning] = useState(false);
   const [banned, setBanned] = useState(false);
+  const [showBanForm, setShowBanForm] = useState(false);
+  const [banReason, setBanReason] = useState("");
   const canBan = me.is_admin && !user.is_admin && user.username !== me.username;
 
   const doBan = async () => {
     if (banning || banned) return;
     setBanning(true);
-    const r = await api("ban_user", { token, target: user.username });
+    const r = await api("ban_user", { token, target: user.username, text: banReason });
     setBanning(false);
     if (r.ok) {
       setBanned(true);
@@ -635,15 +641,41 @@ function ViewProfileScreen({
 
         {canBan && (
           <div className="flex flex-col gap-3 pb-8">
-            <button
-              onClick={doBan}
-              disabled={banning || banned}
-              className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-[15px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
-              style={{ borderColor: C.border, background: "linear-gradient(135deg,#f87171,#ef4444)" }}
-            >
-              <Ban className="h-4 w-4" />
-              {banned ? t(lang, "userBanned") : banning ? t(lang, "loading") : t(lang, "banUser")}
-            </button>
+            {!showBanForm ? (
+              <button
+                onClick={() => setShowBanForm(true)}
+                disabled={banned}
+                className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-[15px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                style={{ borderColor: C.border, background: "linear-gradient(135deg,#f87171,#ef4444)" }}
+              >
+                <Ban className="h-4 w-4" />
+                {banned ? t(lang, "userBanned") : t(lang, "banUser")}
+              </button>
+            ) : (
+              <div className="rounded-xl border p-4" style={{ background: C.panel, borderColor: C.border }}>
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold">{t(lang, "banUser")}</p>
+                  <button onClick={() => setShowBanForm(false)} style={{ color: C.muted }}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <textarea
+                  className="w-full rounded-xl border px-4 py-3 text-[15px] outline-none"
+                  style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.text, minHeight: 80, resize: "vertical" }}
+                  placeholder={t(lang, "banReasonPlaceholder")}
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                />
+                <button
+                  onClick={doBan}
+                  disabled={banning}
+                  className="mt-3 w-full rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg,#f87171,#ef4444)" }}
+                >
+                  {banning ? t(lang, "loading") : t(lang, "banUser")}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

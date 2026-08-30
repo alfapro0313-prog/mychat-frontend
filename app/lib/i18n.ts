@@ -87,7 +87,10 @@ const dict: Record<Lang, Record<string, string>> = {
     bannedUntil: "Banned for",
     hours: "h",
     banUser: "Ban for 3 hours",
+    banReasonPlaceholder: "Reason for the ban (shown to the user)...",
     userBanned: "Banned",
+    bannedByAdmin: "You were banned by the admin.",
+    banReasonLabel: "Reason",
 
     loading: "Loading...",
     err_username_taken: "This username is already taken",
@@ -188,7 +191,10 @@ const dict: Record<Lang, Record<string, string>> = {
     bannedUntil: "Bloklangan, qoldi:",
     hours: "soat",
     banUser: "3 soatga bloklash",
+    banReasonPlaceholder: "Bloklash sababi (foydalanuvchiga ko'rsatiladi)...",
     userBanned: "Bloklandi",
+    bannedByAdmin: "Siz admin tomonidan bloklandingiz.",
+    banReasonLabel: "Sabab",
 
     loading: "Yuklanmoqda...",
     err_username_taken: "Bu foydalanuvchi nomi band",
