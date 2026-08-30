@@ -2,7 +2,7 @@ export type Lang = "en" | "uz";
 
 const dict: Record<Lang, Record<string, string>> = {
   en: {
-    appName: "Randep",
+    appName: "Randap",
     tagline: "Meet someone new.",
     chooseLanguage: "Choose your language",
     english: "English",
@@ -106,7 +106,7 @@ const dict: Record<Lang, Record<string, string>> = {
     err_unknown: "Something went wrong",
   },
   uz: {
-    appName: "Randep",
+    appName: "Randap",
     tagline: "Yangi odam bilan tanishing.",
     chooseLanguage: "Tilingizni tanlang",
     english: "English",
