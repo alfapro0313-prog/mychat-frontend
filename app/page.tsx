@@ -124,6 +124,44 @@ function fileToThumb(file: File): Promise<string> {
 
 const inputCls = `w-full rounded-xl border px-4 py-3 text-[15px] outline-none transition`;
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+/** Synthesizes a short two-knock "someone's here" sound (~2 total seconds with the
+ * decay tail) using the Web Audio API, since no external audio asset is bundled. */
+function playKnockSound() {
+  try {
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const now = ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const t = now + i * 0.45;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(170, t);
+      osc.frequency.exponentialRampToValueAtTime(90, t + 0.15);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.4);
+    }
+    setTimeout(() => ctx.close(), 2000);
+  } catch {
+    /* audio not available - notification still shows visually */
+  }
+}
+
 function LangSelect({ onPick }: { onPick: (l: Lang) => void }) {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center px-6">
@@ -1357,6 +1395,8 @@ export default function Page() {
   const [activeChat, setActiveChat] = useState<Profile | null>(null);
   const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const [prevScreen, setPrevScreen] = useState<Screen>("home");
+  const [toast, setToast] = useState<null | { name: string; photo: string; text: string; profile: Profile }>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const l = localStorage.getItem("rc_lang");
@@ -1374,6 +1414,73 @@ export default function Page() {
       });
     }
     setReady(true);
+  }, []);
+
+  // Web push subscription: ask permission once logged in, so the person gets notified
+  // even when they've left the site (2-second knock sound plays only while the browser
+  // stays open in the background; a fully closed browser falls back to the OS's own sound).
+  useEffect(() => {
+    if (!me || !token) return;
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) return;
+        if (Notification.permission === "denied") return;
+        const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+        if (permission !== "granted") return;
+        const keyRes = await api("vapid_public_key", {});
+        if (!keyRes.ok || !keyRes.key) return;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(keyRes.key),
+        });
+        const j = sub.toJSON() as any;
+        await api("save_push_subscription", {
+          token,
+          endpoint: j.endpoint,
+          p256dh: j.keys?.p256dh,
+          auth: j.keys?.auth,
+        });
+      } catch {
+        /* push not available/allowed - silently skip, chat still works normally */
+      }
+    })();
+  }, [me, token]);
+
+  // Listen for messages from the service worker: play the knock sound, and show an
+  // in-app toast when a push arrives while the app is already open and focused.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg) return;
+      if (msg.type === "randap-play-sound") {
+        playKnockSound();
+      } else if (msg.type === "randap-in-app-notify") {
+        const d = msg.payload || {};
+        playKnockSound();
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        setToast({
+          name: d.from_name || d.from_username || "",
+          photo: d.from_photo || "",
+          text: d.body || "",
+          profile: {
+            username: d.from_username || "",
+            name: d.from_name || "",
+            photo: d.from_photo || "",
+            bio: "",
+            is_admin: false,
+          } as Profile,
+        });
+        toastTimer.current = setTimeout(() => setToast(null), 5000);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, []);
 
   const pickLang = (l: Lang) => {
@@ -1408,87 +1515,113 @@ export default function Page() {
     return <AuthScreen lang={lang} onAuthed={authed} />;
   }
 
-  if (screen === "setup") {
-    return <SetupScreen lang={lang} token={token} onDone={() => setScreen("home")} />;
-  }
+  const renderScreen = () => {
+    if (screen === "setup") {
+      return <SetupScreen lang={lang} token={token} onDone={() => setScreen("home")} />;
+    }
 
-  if (screen === "chat" && activeChat) {
+    if (screen === "chat" && activeChat) {
+      return (
+        <ChatScreen
+          lang={lang}
+          token={token}
+          me={me}
+          other={activeChat}
+          onBack={() => {
+            setActiveChat(null);
+            setScreen("home");
+          }}
+          onViewProfile={(u) => {
+            setViewingUser(u);
+            setPrevScreen("chat");
+            setScreen("viewProfile");
+          }}
+        />
+      );
+    }
+
+    if (screen === "viewProfile" && viewingUser) {
+      return (
+        <ViewProfileScreen
+          lang={lang}
+          token={token}
+          me={me}
+          user={viewingUser}
+          onBack={() => {
+            setViewingUser(null);
+            setScreen(prevScreen);
+          }}
+          onBanned={() => {
+            setViewingUser(null);
+            setScreen(prevScreen);
+          }}
+        />
+      );
+    }
+
+    if (screen === "random") {
+      return <RandomScreen lang={lang} token={token} me={me} onBack={() => setScreen("home")} />;
+    }
+
+    if (screen === "profile") {
+      return (
+        <ProfileScreen
+          lang={lang}
+          token={token}
+          me={me}
+          onBack={() => setScreen("home")}
+          onLogout={logout}
+          onUpdate={(p) => setMe(p)}
+          onViewProfile={(u) => {
+            setViewingUser(u);
+            setPrevScreen("profile");
+            setScreen("viewProfile");
+          }}
+        />
+      );
+    }
+
     return (
-      <ChatScreen
+      <HomeScreen
         lang={lang}
         token={token}
         me={me}
-        other={activeChat}
-        onBack={() => {
-          setActiveChat(null);
-          setScreen("home");
+        onOpenChat={(u) => {
+          setActiveChat(u);
+          setScreen("chat");
         }}
+        onRandom={() => setScreen("random")}
+        onProfile={() => setScreen("profile")}
         onViewProfile={(u) => {
           setViewingUser(u);
-          setPrevScreen("chat");
+          setPrevScreen("home");
           setScreen("viewProfile");
         }}
       />
     );
-  }
-
-  if (screen === "viewProfile" && viewingUser) {
-    return (
-      <ViewProfileScreen
-        lang={lang}
-        token={token}
-        me={me}
-        user={viewingUser}
-        onBack={() => {
-          setViewingUser(null);
-          setScreen(prevScreen);
-        }}
-        onBanned={() => {
-          setViewingUser(null);
-          setScreen(prevScreen);
-        }}
-      />
-    );
-  }
-
-  if (screen === "random") {
-    return <RandomScreen lang={lang} token={token} me={me} onBack={() => setScreen("home")} />;
-  }
-
-  if (screen === "profile") {
-    return (
-      <ProfileScreen
-        lang={lang}
-        token={token}
-        me={me}
-        onBack={() => setScreen("home")}
-        onLogout={logout}
-        onUpdate={(p) => setMe(p)}
-        onViewProfile={(u) => {
-          setViewingUser(u);
-          setPrevScreen("profile");
-          setScreen("viewProfile");
-        }}
-      />
-    );
-  }
+  };
 
   return (
-    <HomeScreen
-      lang={lang}
-      token={token}
-      me={me}
-      onOpenChat={(u) => {
-        setActiveChat(u);
-        setScreen("chat");
-      }}
-      onRandom={() => setScreen("random")}
-      onProfile={() => setScreen("profile")}
-      onViewProfile={(u) => {
-        setViewingUser(u);
-        setPrevScreen("home");
-        setScreen("viewProfile");
-      }}
-    />
+    <>
+      {renderScreen()}
+      {toast && (
+        <button
+          onClick={() => {
+            setToast(null);
+            if (toastTimer.current) clearTimeout(toastTimer.current);
+            setActiveChat(toast.profile);
+            setScreen("chat");
+          }}
+          className="fixed right-3 top-3 z-50 flex w-[calc(100%-1.5rem)] max-w-sm items-center gap-3 rounded-2xl border p-3 text-left shadow-2xl transition hover:brightness-110"
+          style={{ background: C.panel, borderColor: C.border, backdropFilter: "blur(8px)" }}
+        >
+          <Avatar photo={toast.photo} name={toast.name} size={40} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{toast.name}</p>
+            <p className="truncate text-xs" style={{ color: C.muted }}>{toast.text}</p>
+          </div>
+        </button>
+      )}
+    </>
   );
 }
