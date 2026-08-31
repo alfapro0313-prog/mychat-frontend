@@ -1436,8 +1436,8 @@ export default function Page() {
         if (!keyRes.ok || !keyRes.key) return;
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(keyRes.key) as unknown as BufferSource,
-        });
+          applicationServerKey: urlBase64ToUint8Array(keyRes.key),
+        } as any);
         const j = sub.toJSON() as any;
         await api("save_push_subscription", {
           token,
