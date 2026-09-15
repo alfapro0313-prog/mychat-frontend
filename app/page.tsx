@@ -1436,7 +1436,8 @@ export default function Page() {
         if (!keyRes.ok || !keyRes.key) return;
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(keyRes.key!).buffer,
+          applicationServerKey: urlBase64ToUint8Array(keyRes.key!).buffer as ArrayBuffer,
+
 
 
         });
